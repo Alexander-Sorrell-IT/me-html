@@ -1,0 +1,94 @@
+<script>
+(async function () {
+  'use strict';
+  var ME = globalThis.ME;
+  var rows = document.getElementById('rows');
+  var results = [];
+  function t(name, cond) {
+    results.push({ name: name, pass: !!cond });
+    var tr = document.createElement('tr');
+    tr.className = cond ? 'p' : 'f';
+    tr.innerHTML = '<td class="n">' + results.length + '</td><td>' + name + '</td><td class="r">' + (cond ? 'PASS' : 'FAIL') + '</td>';
+    rows.appendChild(tr);
+  }
+  function hex(n) { var s = ''; for (var i = 0; i < n; i++) s += '0123456789abcdef'[Math.floor(Math.random() * 16)]; return s; }
+  async function mk(handle, o) {
+    o = o || {};
+    var id = await ME.newIdentity();
+    var now = Date.now();
+    var base = {
+      format: o.format || 'me/1', id: id.id, public_key: id.pub, handle: handle,
+      name: handle, headline: 'h', building: 'b', good_at: ['x'], looking_for: ['y'],
+      claims: o.claims !== undefined ? o.claims : [{ id: 'c1', text: 't', evidence: 'sha256:' + await ME.sha256hex('ev-' + handle) }],
+      availability: o.availability || [new Date(now + 36e5).toISOString() + '/' + new Date(now + 36e5 + 72e5).toISOString()],
+      policy: { kinds: o.kinds || ['review', 'intro'], min_overlap_minutes: o.min || 15,
+        max_per_day: o.max === undefined ? 2 : o.max, require_evidence: o.reqEv === undefined ? true : o.reqEv },
+      issued_at: o.issued || new Date(now).toISOString(),
+      expires_at: o.expires || new Date(now + 30 * 864e5).toISOString()
+    };
+    return { profile: await ME.signProfile(base, id.priv), priv: id.priv, id: id.id };
+  }
+
+  /* canon + hash */
+  t('canon sorts object keys', ME.canon({ b: 1, a: 2 }) === '{"a":2,"b":1}');
+  t('canon drops undefined', ME.canon({ a: 1, b: undefined }) === '{"a":1}');
+  t('canon keeps array order', ME.canon([3, 1, 2]) === '[3,1,2]');
+  t('canon is key-order independent (nested)', ME.canon({ a: 1, b: { d: 4, c: 3 } }) === ME.canon({ b: { c: 3, d: 4 }, a: 1 }));
+  var rnd = new Uint8Array(32); for (var i = 0; i < 32; i++) rnd[i] = (Math.random() * 256) | 0;
+  t('b64u/ub64u round-trip', ME.ub64u(ME.b64u(rnd)).join(',') === Array.prototype.join.call(rnd, ','));
+  t('sha256("abc") known vector', (await ME.sha256hex('abc')) === 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
+  t('sha256hex is 64 lowercase hex', /^[0-9a-f]{64}$/.test(await ME.sha256hex('me')));
+
+  /* identity + signatures */
+  var i1 = await ME.newIdentity(), i2 = await ME.newIdentity();
+  t('identity id format me:+32hex', /^me:[0-9a-f]{32}$/.test(i1.id));
+  t('identities are unique', i1.id !== i2.id);
+  var A = await mk('alex'), B = await mk('sam');
+  t('signed profile verifies', await ME.verifyProfile(A.profile));
+  var tampered = JSON.parse(JSON.stringify(A.profile)); tampered.handle = 'mallory';
+  t('tampered handle fails verify', !(await ME.verifyProfile(tampered)));
+  var badf = JSON.parse(JSON.stringify(A.profile)); badf.format = 'me/9';
+  t('wrong format fails verify', !(await ME.verifyProfile(badf)));
+  var msg = new TextEncoder().encode('hello');
+  t('signBytes/verifyBytes round-trip', await ME.verifyBytes(A.profile.public_key, msg, await ME.signBytes(A.priv, msg)));
+  t('verifyBytes with wrong key fails', !(await ME.verifyBytes(B.profile.public_key, msg, await ME.signBytes(A.priv, msg))));
+
+  /* merge gates */
+  var r1 = await ME.runMerge(A.profile, B.profile);
+  t('compatible pair: 6/6 gates + proposal', r1.ok && r1.gates.every(function (g) { return g.ok; }) && r1.proposal);
+  var rSig = await ME.runMerge(tampered, B.profile);
+  t('tampered file → E_SIG', !rSig.ok && rSig.reason === 'E_SIG');
+  var E = await mk('eve', { expires: new Date(Date.now() - 1000).toISOString() });
+  t('expired file → E_EXPIRED', (await ME.runMerge(E.profile, B.profile)).reason === 'E_EXPIRED');
+  var P = await mk('pat', { kinds: ['advice'] });
+  t('disjoint kinds → E_POLICY', (await ME.runMerge(P.profile, B.profile)).reason === 'E_POLICY');
+  var O = await mk('oli', { availability: [new Date(Date.now() + 864e5).toISOString() + '/' + new Date(Date.now() + 864e5 + 36e5).toISOString()] });
+  t('disjoint windows → E_NO_OVERLAP', (await ME.runMerge(O.profile, B.profile)).reason === 'E_NO_OVERLAP');
+  t('bad format → E_FORMAT', (await ME.runMerge({ hello: 1 }, B.profile)).reason === 'E_FORMAT');
+  var V = await mk('val', { claims: [{ id: 'c1', text: 't', evidence: 'nope' }] });
+  t('missing evidence → E_EVIDENCE', (await ME.runMerge(V.profile, B.profile)).reason === 'E_EVIDENCE');
+
+  /* agreement */
+  var agr = await ME.makeAgreement(A.profile, B.profile, r1.proposal);
+  var s1 = await ME.signAgreement(agr, A.priv, A.id);
+  var v1 = await ME.verifyAgreement(s1);
+  t('one signature → E_UNSIGNED', !v1.ok && v1.reason === 'E_UNSIGNED');
+  var s2 = await ME.signAgreement(s1, B.priv, B.id);
+  var v2 = await ME.verifyAgreement(s2);
+  t('co-signed agreement verifies (2/2)', v2.ok && v2.signedBy.length === 2);
+  var tamperAgr = JSON.parse(JSON.stringify(s2)); tamperAgr.terms.minutes = 99;
+  t('tampered agreement → E_DIGEST', (await ME.verifyAgreement(tamperAgr)).reason === 'E_DIGEST');
+  t('proposal is deterministic', ME.canon(ME.propose(A.profile, B.profile)) === ME.canon(ME.propose(A.profile, B.profile)));
+  var cal = ME.ics(s2);
+  t('ics export well-formed', cal.indexOf('BEGIN:VCALENDAR') === 0 && cal.indexOf('DTSTART:') > 0 && cal.indexOf('SUMMARY:') > 0);
+
+  var passed = results.filter(function (r) { return r.pass; }).length;
+  var sum = document.getElementById('summary');
+  sum.textContent = passed + '/' + results.length + ' assertions passed' + (passed === results.length ? ' — ALL GREEN' : ' — FAILURES ABOVE');
+  sum.className = passed === results.length ? 'ok' : 'bad';
+  document.title = (passed === results.length ? 'PASS' : 'FAIL') + ' ' + passed + '/' + results.length + ' — me/1';
+  globalThis.__TEST__ = { passed: passed, total: results.length, ok: passed === results.length };
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,729 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>me.html — your professional self as a single file</title>
+<style>
+:root{
+  --ink:#0a0a0a; --panel:#101010; --paper:#f2efe6; --dim:#8b8677;
+  --line:#272520; --gold:#c9a227; --ok:#57a773; --bad:#cf5a43;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--ink);color:var(--paper);
+  font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;-webkit-font-smoothing:antialiased}
+body{max-width:1180px;margin:0 auto;padding:20px 22px 84px}
+header{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:14px}
+.brand{font-size:26px;letter-spacing:-.02em}
+.brand b{color:var(--gold);font-weight:600}
+.tag{color:var(--dim)}
+#boot{margin-left:auto;color:var(--dim);font-size:11px}
+nav{display:flex;gap:8px;margin:18px 0 24px}
+nav button{background:none;border:1px solid var(--line);color:var(--dim);padding:7px 14px;border-radius:2px;font:inherit;cursor:pointer}
+nav button.on{border-color:var(--gold);color:var(--gold)}
+h2{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);margin:0 0 10px;font-weight:500}
+h3{font-size:13px;margin:18px 0 6px;font-weight:600}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:26px;align-items:start}
+@media (max-width:880px){.cols{grid-template-columns:1fr}}
+fieldset{border:1px solid var(--line);padding:14px 16px 16px;margin:0 0 18px;border-radius:2px}
+label{display:block;color:var(--dim);font-size:11px;margin:10px 0 4px;letter-spacing:.06em}
+input[type=text],input[type=datetime-local],input[type=number],textarea{
+  width:100%;background:#0d0d0c;border:1px solid var(--line);color:var(--paper);padding:8px 9px;font:inherit;border-radius:2px}
+textarea{min-height:80px;resize:vertical}
+input:focus,textarea:focus{outline:none;border-color:var(--gold)}
+input[type=file]{width:100%;color:var(--dim);font:inherit;font-size:11px;padding:6px 0}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+button.act{background:var(--gold);color:#0a0a0a;border:none;padding:11px 18px;font:inherit;font-weight:600;cursor:pointer;border-radius:2px}
+button.act:disabled{opacity:.3;cursor:not-allowed}
+button.ghost{background:none;border:1px solid var(--line);color:var(--paper);padding:10px 14px;font:inherit;cursor:pointer;border-radius:2px}
+button.ghost:hover{border-color:var(--gold)}
+button.ghost:disabled{opacity:.3;cursor:not-allowed}
+.kinds{display:flex;gap:16px;flex-wrap:wrap;margin-top:6px}
+.kinds label{display:flex;gap:6px;align-items:center;color:var(--paper);font-size:12px;margin:0}
+.gates{display:flex;flex-direction:column;gap:6px;margin:14px 0}
+.gate{display:flex;gap:10px;align-items:baseline;border-left:2px solid var(--line);padding:7px 10px;background:var(--panel)}
+.gate.ok{border-color:var(--ok)}
+.gate.bad{border-color:var(--bad)}
+.gate .m{width:12px}
+.gate .n{width:84px;color:var(--paper)}
+.gate .d{color:var(--dim);font-size:11px;flex:1}
+.gate .c{margin-left:auto;color:var(--bad);font-size:11px}
+pre{background:var(--panel);border:1px solid var(--line);padding:12px;overflow:auto;font-size:11.5px;max-height:300px;margin:8px 0}
+.chip{display:inline-block;border:1px solid var(--line);padding:4px 9px;margin:0 6px 6px 0;font-size:11px;color:var(--dim);cursor:pointer}
+.chip.on{border-color:var(--gold);color:var(--gold)}
+.pill{font-size:11px;padding:3px 9px;border:1px solid var(--line);border-radius:20px;color:var(--dim)}
+.pill.ok{border-color:var(--ok);color:var(--ok)}
+.pill.bad{border-color:var(--bad);color:var(--bad)}
+.muted{color:var(--dim)}
+.sub{color:var(--dim);font-size:11px;margin-top:6px;line-height:1.5}
+footer{position:fixed;left:0;right:0;bottom:0;background:#0a0a0af2;border-top:1px solid var(--line);
+  padding:9px 22px;color:var(--dim);font-size:11px;display:flex;gap:18px;align-items:center}
+#toast{margin-left:auto;color:var(--gold);opacity:0;transition:opacity .25s}
+#toast.on{opacity:1}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">me<b>.html</b></div>
+  <div class="tag">one file · no account · no server · works with the network off</div>
+  <div id="boot">booting…</div>
+</header>
+
+<nav>
+  <button class="on" data-tab="build">01 build</button>
+  <button data-tab="merge">02 merge</button>
+  <button data-tab="verify">03 verify</button>
+</nav>
+
+<main>
+  <section id="tab-build">
+    <div class="cols">
+      <div>
+        <h2>who you are</h2>
+        <fieldset>
+          <div class="row">
+            <div><label>name</label><input id="f-name" type="text" placeholder="Alex Rivera"></div>
+            <div><label>handle</label><input id="f-handle" type="text" placeholder="alex"></div>
+          </div>
+          <label>headline</label><input id="f-headline" type="text" placeholder="builds agent infrastructure">
+          <label>building</label><input id="f-building" type="text" placeholder="a consent loop for agent intros">
+          <label>good at (comma separated)</label><input id="f-good" type="text" placeholder="infra, typescript, demos">
+          <label>looking for (comma separated)</label><input id="f-want" type="text" placeholder="design partner, intro to sophie">
+        </fieldset>
+        <h2>availability</h2>
+        <fieldset>
+          <div class="row">
+            <div><label>free from</label><input id="f-start" type="datetime-local"></div>
+            <div><label>free until</label><input id="f-end" type="datetime-local"></div>
+          </div>
+          <div class="sub">stored as UTC; the merge only reads these intervals.</div>
+        </fieldset>
+      </div>
+      <div>
+        <h2>claims &amp; policy</h2>
+        <fieldset>
+          <label>claims — one per line, <span class="muted">text | sha256:…</span></label>
+          <textarea id="f-claims" placeholder="shipped a compiler | sha256:0000…"></textarea>
+          <label>kinds you will agree to</label>
+          <div class="kinds">
+            <label><input class="kind" type="checkbox" value="review" checked>review</label>
+            <label><input class="kind" type="checkbox" value="intro" checked>intro</label>
+            <label><input class="kind" type="checkbox" value="pair" checked>pair</label>
+            <label><input class="kind" type="checkbox" value="advice">advice</label>
+          </div>
+          <div class="row">
+            <div><label>min overlap (minutes)</label><input id="f-min" type="number" value="15" min="5" step="5"></div>
+            <div><label>max per day</label><input id="f-max" type="number" value="2" min="0"></div>
+          </div>
+          <label>valid for (days)</label><input id="f-days" type="number" value="30" min="1">
+          <div class="kinds" style="margin-top:14px">
+            <label><input id="f-evidence" type="checkbox" checked>every claim carries evidence</label>
+          </div>
+        </fieldset>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="act" id="b-build">generate key · sign · download</button>
+          <button class="ghost" id="b-example">fill example</button>
+        </div>
+        <div id="vault" style="margin-top:16px"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-merge" hidden>
+    <div class="cols">
+      <div>
+        <h2>two files, one room</h2>
+        <fieldset>
+          <label>file a</label><input id="m-a" type="file" accept=".json,application/json">
+          <label>file b</label><input id="m-b" type="file" accept=".json,application/json">
+        </fieldset>
+        <button class="act" id="m-run">run merge</button>
+        <div class="sub">nothing leaves this tab — no fetch, no socket, no account. pull the network cable and it still runs.</div>
+        <div id="m-agree"></div>
+      </div>
+      <div>
+        <h2>state</h2>
+        <div id="m-state" class="muted">idle — load two files</div>
+        <div id="m-gates" class="gates"></div>
+        <div id="m-prop"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-verify" hidden>
+    <h2>verify an agreement, offline</h2>
+    <fieldset>
+      <label>agreement file</label><input id="v-file" type="file" accept=".json,application/json">
+    </fieldset>
+    <div id="v-out" class="muted">load a co-signed agreement to recompute its digest and both signatures.</div>
+  </section>
+</main>
+
+<footer>
+  <span>me.html · format me/1 · ecdsa p-256 · zero network calls</span>
+  <span id="toast"></span>
+</footer>
+
+<script id="me-core">
+/* me/1 core — pure logic. no DOM, no network, no dependencies. */
+globalThis.ME = (function () {
+  'use strict';
+  var te = new TextEncoder();
+
+  function b64u(bytes) {
+    var s = '';
+    for (var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+    return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+
+  function ub64u(str) {
+    var s = String(str).replace(/-/g, '+').replace(/_/g, '/');
+    while (s.length % 4) s += '=';
+    var bin = atob(s), out = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+
+  function canon(v) {
+    if (v === null || typeof v !== 'object') return JSON.stringify(v);
+    if (Array.isArray(v)) {
+      var parts = [];
+      for (var i = 0; i < v.length; i++) parts.push(canon(v[i]));
+      return '[' + parts.join(',') + ']';
+    }
+    var keys = Object.keys(v).filter(function (k) { return v[k] !== undefined; }).sort();
+    var out = [];
+    for (var j = 0; j < keys.length; j++) out.push(JSON.stringify(keys[j]) + ':' + canon(v[keys[j]]));
+    return '{' + out.join(',') + '}';
+  }
+
+  async function sha256hex(str) {
+    var d = await crypto.subtle.digest('SHA-256', te.encode(str));
+    var b = new Uint8Array(d), s = '';
+    for (var i = 0; i < b.length; i++) s += b[i].toString(16).padStart(2, '0');
+    return s;
+  }
+
+  function cleanPub(j) { return { crv: 'P-256', kty: 'EC', x: j.x, y: j.y }; }
+  function cleanPriv(j) { return { crv: 'P-256', d: j.d, kty: 'EC', x: j.x, y: j.y }; }
+
+  async function newIdentity() {
+    var kp = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+    var pub = cleanPub(await crypto.subtle.exportKey('jwk', kp.publicKey));
+    var priv = cleanPriv(await crypto.subtle.exportKey('jwk', kp.privateKey));
+    var id = 'me:' + (await sha256hex(canon(pub))).slice(0, 32);
+    return { id: id, pub: pub, priv: priv };
+  }
+
+  async function signBytes(privJwk, bytes) {
+    var k = await crypto.subtle.importKey(
+      'jwk',
+      { kty: 'EC', crv: 'P-256', x: privJwk.x, y: privJwk.y, d: privJwk.d },
+      { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign']
+    );
+    var sig = await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, k, bytes);
+    return b64u(new Uint8Array(sig));
+  }
+
+  async function verifyBytes(pubJwk, bytes, sigB64) {
+    try {
+      var k = await crypto.subtle.importKey(
+        'jwk', { kty: 'EC', crv: 'P-256', x: pubJwk.x, y: pubJwk.y },
+        { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']
+      );
+      return await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, k, ub64u(sigB64), bytes);
+    } catch (e) { return false; }
+  }
+
+  function without(obj, keys) {
+    var copy = JSON.parse(JSON.stringify(obj));
+    for (var i = 0; i < keys.length; i++) delete copy[keys[i]];
+    return copy;
+  }
+
+  async function signProfile(profile, privJwk) {
+    var body = without(profile, ['signature']);
+    var sig = await signBytes(privJwk, te.encode(canon(body)));
+    var out = JSON.parse(JSON.stringify(body));
+    out.signature = sig;
+    return out;
+  }
+
+  async function verifyProfile(p) {
+    try {
+      if (!p || p.format !== 'me/1' || !p.public_key || !p.signature) return false;
+      return await verifyBytes(p.public_key, te.encode(canon(without(p, ['signature']))), p.signature);
+    } catch (e) { return false; }
+  }
+
+  /* ---- merge ---- */
+
+  var KIND_ORDER = ['review', 'intro', 'pair', 'advice'];
+
+  function intervals(p) {
+    var out = [];
+    var list = (p && p.availability) || [];
+    for (var i = 0; i < list.length; i++) {
+      var parts = String(list[i]).split('/');
+      var s = Date.parse(parts[0]), e = Date.parse(parts[1]);
+      if (!isNaN(s) && !isNaN(e) && e > s) out.push([s, e]);
+    }
+    return out;
+  }
+
+  function overlap(a, b) {
+    var best = null, ia = intervals(a), ib = intervals(b);
+    for (var i = 0; i < ia.length; i++) {
+      for (var j = 0; j < ib.length; j++) {
+        var s = Math.max(ia[i][0], ib[j][0]);
+        var e = Math.min(ia[i][1], ib[j][1]);
+        if (e > s) {
+          if (!best || s < best.start || (s === best.start && e > best.end)) best = { start: s, end: e };
+        }
+      }
+    }
+    return best;
+  }
+
+  function commonKinds(a, b) {
+    var ka = (a.policy && a.policy.kinds) || [];
+    var kb = (b.policy && b.policy.kinds) || [];
+    return KIND_ORDER.filter(function (k) { return ka.indexOf(k) !== -1 && kb.indexOf(k) !== -1; });
+  }
+
+  function policyOk(a, b) {
+    if (!commonKinds(a, b).length) return false;
+    var ca = a.policy && typeof a.policy.max_per_day === 'number' ? a.policy.max_per_day : 99;
+    var cb = b.policy && typeof b.policy.max_per_day === 'number' ? b.policy.max_per_day : 99;
+    return ca > 0 && cb > 0;
+  }
+
+  function evidenceOk(p) {
+    if (!(p.policy && p.policy.require_evidence)) return true;
+    var cs = p.claims || [];
+    for (var i = 0; i < cs.length; i++) {
+      if (!/^sha256:[0-9a-f]{64}$/.test(String(cs[i].evidence || ''))) return false;
+    }
+    return true;
+  }
+
+  function fresh(p, now) {
+    var i = Date.parse(p.issued_at || ''), x = Date.parse(p.expires_at || '');
+    return !isNaN(i) && !isNaN(x) && i <= now + 5 * 60 * 1000 && x >= now;
+  }
+
+  function propose(a, b) {
+    var kinds = commonKinds(a, b);
+    var slot = overlap(a, b);
+    if (!kinds.length || !slot) return null;
+    var minA = (a.policy && a.policy.min_overlap_minutes) || 15;
+    var minB = (b.policy && b.policy.min_overlap_minutes) || 15;
+    var len = Math.floor((slot.end - slot.start) / 60000 / 15) * 15;
+    if (len < Math.max(minA, minB)) return null;
+    var kind = kinds[0];
+    var minutes = Math.min(len, 45);
+    return {
+      slot: { start: new Date(slot.start).toISOString(), end: new Date(slot.start + minutes * 60000).toISOString() },
+      terms: { kind: kind, minutes: minutes, text: a.handle + ' offers ' + kind + ' to ' + b.handle, a: a.id, b: b.id }
+    };
+  }
+
+  async function runMerge(a, b, now) {
+    now = now || Date.now();
+    var gates = [];
+    function gate(id, ok, detail, code) {
+      gates.push({ id: id, ok: !!ok, detail: detail, code: ok ? null : code });
+      return !!ok;
+    }
+    function shape(p) { return !!(p && p.format === 'me/1' && p.public_key && p.id && p.handle); }
+    if (!gate('format', shape(a) && shape(b), 'both files declare me/1', 'E_FORMAT')) {
+      return { ok: false, gates: gates, proposal: null, reason: 'E_FORMAT' };
+    }
+    var sigOk = gate('signature', (await verifyProfile(a)) && (await verifyProfile(b)),
+      'self-signature verifies against the embedded p-256 key', 'E_SIG');
+    var freshOk = gate('fresh', fresh(a, now) && fresh(b, now),
+      'now sits inside both signed validity windows', 'E_EXPIRED');
+    var evOk = gate('evidence', evidenceOk(a) && evidenceOk(b),
+      'claims carry sha256 evidence where policy demands', 'E_EVIDENCE');
+    var polOk = gate('policy', policyOk(a, b),
+      'kind intersection non-empty, both capacities open', 'E_POLICY');
+    var prop = (sigOk && freshOk && evOk && polOk) ? propose(a, b) : null;
+    gate('overlap', !!prop, 'shared window meets both minimums (deterministic pick)', 'E_NO_OVERLAP');
+    var ok = gates.every(function (g) { return g.ok; });
+    return { ok: ok, gates: gates, proposal: prop, reason: ok ? null : (gates.find(function (g) { return !g.ok; }) || {}).code };
+  }
+
+  /* ---- agreement ---- */
+
+  async function makeAgreement(a, b, prop) {
+    var body = {
+      format: 'agreement/1',
+      parties: [
+        { id: a.id, handle: a.handle, public_key: a.public_key },
+        { id: b.id, handle: b.handle, public_key: b.public_key }
+      ],
+      terms: prop.terms,
+      slot: prop.slot,
+      inputs: {
+        a: 'sha256:' + await sha256hex(canon(without(a, ['signature']))),
+        b: 'sha256:' + await sha256hex(canon(without(b, ['signature'])))
+      },
+      issued_at: new Date().toISOString()
+    };
+    body.digest = 'sha256:' + await sha256hex(canon(body));
+    body.signatures = [];
+    return body;
+  }
+
+  async function signAgreement(agr, privJwk, id) {
+    var body = without(agr, ['digest', 'signatures']);
+    var digest = 'sha256:' + await sha256hex(canon(body));
+    if (digest !== agr.digest) return null;
+    var sig = await signBytes(privJwk, te.encode(digest));
+    var sigs = (agr.signatures || []).filter(function (s) { return s.id !== id; });
+    sigs.push({ id: id, sig: sig, at: new Date().toISOString() });
+    var out = JSON.parse(JSON.stringify(agr));
+    out.signatures = sigs;
+    return out;
+  }
+
+  async function verifyAgreement(agr) {
+    if (!agr || agr.format !== 'agreement/1' || !Array.isArray(agr.parties)) {
+      return { ok: false, digestOk: false, reason: 'E_FORMAT', signedBy: [], missing: [] };
+    }
+    var digest = 'sha256:' + await sha256hex(canon(without(agr, ['digest', 'signatures'])));
+    var digestOk = digest === agr.digest;
+    if (!digestOk) return { ok: false, digestOk: false, reason: 'E_DIGEST', signedBy: [], missing: [] };
+    var signedBy = [], missing = [];
+    for (var i = 0; i < agr.parties.length; i++) {
+      var p = agr.parties[i];
+      var s = (agr.signatures || []).filter(function (x) { return x.id === p.id; })[0];
+      if (!s) { missing.push(p.id); continue; }
+      var good = await verifyBytes(p.public_key, te.encode(digest), s.sig);
+      if (!good) return { ok: false, digestOk: true, reason: 'E_SIG', signedBy: signedBy, missing: missing };
+      signedBy.push(p.id);
+    }
+    return {
+      ok: missing.length === 0,
+      digestOk: true,
+      reason: missing.length ? 'E_UNSIGNED' : null,
+      signedBy: signedBy,
+      missing: missing
+    };
+  }
+
+  function ics(agr) {
+    function stamp(t) { return new Date(t).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, ''); }
+    return [
+      'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//me.html//me/1//EN', 'BEGIN:VEVENT',
+      'UID:' + agr.digest.slice(7, 39) + '@me.html',
+      'DTSTAMP:' + stamp(Date.now()),
+      'DTSTART:' + stamp(agr.slot.start),
+      'DTEND:' + stamp(agr.slot.end),
+      'SUMMARY:' + agr.terms.kind + ' — ' + agr.parties[0].handle + ' × ' + agr.parties[1].handle,
+      'DESCRIPTION:' + agr.digest,
+      'END:VEVENT', 'END:VCALENDAR'
+    ].join('\r\n');
+  }
+
+  return {
+    canon: canon, b64u: b64u, ub64u: ub64u, sha256hex: sha256hex,
+    newIdentity: newIdentity, signBytes: signBytes, verifyBytes: verifyBytes,
+    signProfile: signProfile, verifyProfile: verifyProfile,
+    propose: propose, runMerge: runMerge,
+    makeAgreement: makeAgreement, signAgreement: signAgreement, verifyAgreement: verifyAgreement,
+    ics: ics, KIND_ORDER: KIND_ORDER
+  };
+})();
+</script>
+
+<script>
+(function () {
+  'use strict';
+  var $ = function (s) { return document.querySelector(s); };
+  var $$ = function (s) { return Array.prototype.slice.call(document.querySelectorAll(s)); };
+
+  function esc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+  function toast(msg) {
+    var t = $('#toast');
+    t.textContent = msg;
+    t.classList.add('on');
+    clearTimeout(toast._h);
+    toast._h = setTimeout(function () { t.classList.remove('on'); }, 4500);
+  }
+  function splitList(s) {
+    return String(s || '').split(',').map(function (x) { return x.trim(); }).filter(Boolean);
+  }
+  function download(name, obj) {
+    var blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 5000);
+  }
+  function readJSON(input) {
+    return new Promise(function (res, rej) {
+      var f = input.files && input.files[0];
+      if (!f) return rej(new Error('no file selected'));
+      var r = new FileReader();
+      r.onload = function () {
+        try { res(JSON.parse(r.result)); } catch (e) { rej(new Error('not json')); }
+      };
+      r.onerror = function () { rej(r.error || new Error('read failed')); };
+      r.readAsText(f);
+    });
+  }
+
+  /* tabs */
+  $$('nav button').forEach(function (b) {
+    b.onclick = function () {
+      $$('nav button').forEach(function (x) { x.classList.toggle('on', x === b); });
+      ['build', 'merge', 'verify'].forEach(function (t) { $('#tab-' + t).hidden = t !== b.dataset.tab; });
+    };
+  });
+
+  /* vault of identities made in this browser */
+  var VKEY = 'me.vault.v1';
+  var vault = { active: null, identities: {} };
+  try {
+    var raw = JSON.parse(localStorage.getItem(VKEY) || '{}');
+    if (raw && raw.identities) { vault.identities = raw.identities; vault.active = raw.active || null; }
+  } catch (e) { }
+  function saveVault() {
+    try { localStorage.setItem(VKEY, JSON.stringify(vault)); }
+    catch (e) { toast('localStorage refused — keys stay in memory for this tab'); }
+  }
+  function renderVault() {
+    var el = $('#vault');
+    el.innerHTML = '';
+    var ids = Object.keys(vault.identities);
+    if (!ids.length) {
+      el.innerHTML = '<span class="muted" style="font-size:11px">no identities in this browser yet</span>';
+      return;
+    }
+    ids.forEach(function (id) {
+      var prof = vault.identities[id].profile;
+      var chip = document.createElement('span');
+      chip.className = 'chip' + (vault.active === id ? ' on' : '');
+      chip.textContent = prof.handle + ' · ' + id.slice(3, 11);
+      chip.title = id + ' (click to make active)';
+      chip.onclick = function () { vault.active = id; saveVault(); renderVault(); };
+      el.appendChild(chip);
+    });
+  }
+  renderVault();
+
+  /* build */
+  $('#b-build').onclick = async function () {
+    var btn = this;
+    btn.disabled = true;
+    try {
+      var handle = $('#f-handle').value.trim() || 'anon';
+      var ident = await ME.newIdentity();
+      var claims = $('#f-claims').value.split('\n')
+        .map(function (l) { return l.trim(); })
+        .filter(Boolean)
+        .map(function (line, i) {
+          var parts = line.split('|');
+          return { id: 'c' + (i + 1), text: (parts[0] || '').trim(), evidence: (parts[1] || '').trim() };
+        });
+      var start = $('#f-start').value, end = $('#f-end').value;
+      var availability = (start && end) ? [new Date(start).toISOString() + '/' + new Date(end).toISOString()] : [];
+      var kinds = $$('.kind').filter(function (c) { return c.checked; }).map(function (c) { return c.value; });
+      var now = Date.now();
+      var days = Number($('#f-days').value || 30);
+      var base = {
+        format: 'me/1',
+        id: ident.id,
+        public_key: ident.pub,
+        handle: handle,
+        name: $('#f-name').value.trim(),
+        headline: $('#f-headline').value.trim(),
+        building: $('#f-building').value.trim(),
+        good_at: splitList($('#f-good').value),
+        looking_for: splitList($('#f-want').value),
+        claims: claims,
+        availability: availability,
+        policy: {
+          kinds: kinds,
+          min_overlap_minutes: Number($('#f-min').value || 15),
+          max_per_day: Number($('#f-max').value || 2),
+          require_evidence: $('#f-evidence').checked
+        },
+        issued_at: new Date(now).toISOString(),
+        expires_at: new Date(now + days * 86400000).toISOString()
+      };
+      var profile = await ME.signProfile(base, ident.priv);
+      vault.identities[ident.id] = { profile: profile, priv: ident.priv };
+      vault.active = ident.id;
+      saveVault();
+      renderVault();
+      download(handle + '.me.json', profile);
+      toast('signed as ' + handle + ' · ' + ident.id.slice(0, 14) + '… · file downloaded');
+    } catch (e) {
+      toast('failed: ' + e.message);
+    } finally {
+      btn.disabled = false;
+    }
+  };
+
+  /* example content — name and handle stay yours to type */
+  $('#b-example').onclick = async function () {
+    var btn = this;
+    btn.disabled = true;
+    try {
+      var pad = function (n) { return String(n).padStart(2, '0'); };
+      var local = function (x) {
+        return x.getFullYear() + '-' + pad(x.getMonth() + 1) + '-' + pad(x.getDate()) +
+          'T' + pad(x.getHours()) + ':' + pad(x.getMinutes());
+      };
+      var d = new Date();
+      d.setDate(d.getDate() + 1);
+      d.setHours(10, 0, 0, 0);
+      $('#f-headline').value = 'builds agent infrastructure';
+      $('#f-building').value = 'a consent layer for machine-to-machine agreements';
+      $('#f-good').value = 'distributed systems, protocol design, demos that run offline';
+      $('#f-want').value = 'a design partner, an intro to a second customer';
+      $('#f-start').value = local(d);
+      $('#f-end').value = local(new Date(d.getTime() + 3600000));
+      $('#f-claims').value = 'shipped a compiler used in production | sha256:' +
+        (await ME.sha256hex('me.html — one file, no account, no server'));
+      toast('example filled — type a name and handle, then build');
+    } catch (e) {
+      toast('failed: ' + e.message);
+    } finally {
+      btn.disabled = false;
+    }
+  };
+
+  /* merge */
+  var state = { a: null, b: null, report: null, agreement: null };
+
+  $('#m-run').onclick = async function () {
+    try {
+      var files = await Promise.all([readJSON($('#m-a')), readJSON($('#m-b'))]);
+      state.a = files[0];
+      state.b = files[1];
+      state.agreement = null;
+      state.report = await ME.runMerge(state.a, state.b);
+      renderMerge();
+    } catch (e) {
+      toast('load failed: ' + e.message);
+    }
+  };
+
+  function gateRow(g) {
+    return '<div class="gate ' + (g.ok ? 'ok' : 'bad') + '">' +
+      '<span class="m">' + (g.ok ? '✓' : '✕') + '</span>' +
+      '<span class="n">' + g.id + '</span>' +
+      '<span class="d">' + esc(g.detail || '') + '</span>' +
+      (g.ok ? '' : '<span class="c">' + g.code + '</span>') +
+      '</div>';
+  }
+
+  function renderMerge() {
+    var rep = state.report;
+    var passed = rep.gates.filter(function (g) { return g.ok; }).length;
+    $('#m-state').innerHTML =
+      '<span class="pill ' + (rep.ok ? 'ok' : 'bad') + '">' +
+      (rep.ok ? 'COMPATIBLE' : 'REJECTED · ' + rep.reason) + '</span> ' +
+      '<span class="muted">' + passed + '/' + rep.gates.length + ' gates</span>';
+    $('#m-gates').innerHTML = rep.gates.map(gateRow).join('');
+    $('#m-agree').innerHTML = '';
+    if (!rep.proposal) {
+      $('#m-prop').innerHTML = '<div class="sub">no proposal — nothing was created. a refusal is an outcome, not an error.</div>';
+      return;
+    }
+    $('#m-prop').innerHTML =
+      '<h3>deterministic proposal</h3>' +
+      '<pre>' + esc(JSON.stringify(rep.proposal, null, 2)) + '</pre>' +
+      '<div id="m-sig"></div>';
+    renderSigButtons();
+  }
+
+  function renderSigButtons() {
+    var a = state.a, b = state.b;
+    var hasA = !!vault.identities[a.id], hasB = !!vault.identities[b.id];
+    $('#m-sig').innerHTML =
+      '<button class="act" id="s-a"' + (hasA ? '' : ' disabled') + '>sign as ' + esc(a.handle) + (hasA ? '' : ' · no key') + '</button> ' +
+      '<button class="ghost" id="s-b"' + (hasB ? '' : ' disabled') + '>co-sign as ' + esc(b.handle) + (hasB ? '' : ' · no key') + '</button>' +
+      '<div class="sub">a signature needs the private key that signed that file. both are in this browser for the demo; in the field it is one key per machine.</div>';
+    if (hasA) $('#s-a').onclick = function () { collectAndSign('a'); };
+    if (hasB) $('#s-b').onclick = function () { collectAndSign('b'); };
+  }
+
+  async function collectAndSign(which) {
+    var a = state.a, b = state.b;
+    if (!state.agreement) state.agreement = await ME.makeAgreement(a, b, state.report.proposal);
+    var id = which === 'a' ? a.id : b.id;
+    var entry = vault.identities[id];
+    if (!entry) { toast('no private key for ' + id.slice(0, 12)); return; }
+    var signed = await ME.signAgreement(state.agreement, entry.priv, id);
+    if (!signed) { toast('digest mismatch — refusing to sign'); return; }
+    state.agreement = signed;
+    var v = await ME.verifyAgreement(signed);
+    download(which === 'a' ? 'agreement.offer.json' : 'agreement.signed.json', signed);
+    renderAgreement(signed, v);
+  }
+
+  function renderAgreement(agr, v) {
+    var chips = agr.parties.map(function (p) {
+      var signed = v.signedBy.indexOf(p.id) !== -1;
+      return '<span class="pill ' + (signed ? 'ok' : 'bad') + '">' + esc(p.handle) + ' ' + (signed ? 'signed' : 'missing') + '</span>';
+    }).join(' ');
+    $('#m-agree').innerHTML =
+      '<h3>agreement</h3>' +
+      '<pre>' + esc(JSON.stringify({
+        terms: agr.terms, slot: agr.slot, digest: agr.digest,
+        signatures: agr.signatures.map(function (s) { return s.id + ' @ ' + s.at; })
+      }, null, 2)) + '</pre>' +
+      '<div>' + chips + ' ' + (v.ok ? '<span class="pill ok">CO-SIGNED</span>' : '<span class="pill">OFFER</span>') + '</div>' +
+      '<div style="margin-top:12px"><button class="ghost" id="dl-ics">download .ics</button> ' +
+      '<button class="ghost" id="dl-json">download agreement</button></div>';
+    $('#dl-ics').onclick = function () {
+      var blob = new Blob([ME.ics(agr)], { type: 'text/calendar' });
+      var u = URL.createObjectURL(blob);
+      var a2 = document.createElement('a');
+      a2.href = u; a2.download = 'handoff.ics';
+      document.body.appendChild(a2); a2.click(); a2.remove();
+      setTimeout(function () { URL.revokeObjectURL(u); }, 5000);
+      toast('calendar hold exported');
+    };
+    $('#dl-json').onclick = function () { download('agreement.signed.json', agr); };
+  }
+
+  /* verify */
+  $('#v-file').onchange = async function () {
+    try {
+      var agr = await readJSON(this);
+      var v = await ME.verifyAgreement(agr);
+      var digestOk = v.digestOk;
+      $('#v-out').innerHTML =
+        '<div class="gates">' +
+        '<div class="gate ' + (digestOk ? 'ok' : 'bad') + '">' +
+        '<span class="m">' + (digestOk ? '✓' : '✕') + '</span><span class="n">digest</span>' +
+        '<span class="d">recomputed over the unsigned body</span>' +
+        (digestOk ? '' : '<span class="c">E_DIGEST</span>') + '</div>' +
+        '<div class="gate ' + (v.ok ? 'ok' : 'bad') + '">' +
+        '<span class="m">' + (v.ok ? '✓' : '✕') + '</span><span class="n">signatures</span>' +
+        '<span class="d">' + v.signedBy.length + ' of ' + (agr.parties ? agr.parties.length : 0) + ' · ecdsa p-256</span>' +
+        (v.ok ? '' : '<span class="c">' + (v.reason || 'E_SIG') + '</span>') + '</div>' +
+        '</div><pre>' + esc(JSON.stringify(agr, null, 2)) + '</pre>';
+    } catch (e) {
+      toast('verify failed: ' + e.message);
+    }
+  };
+
+  document.body.dataset.app = 'ok';
+  var subtle = (typeof crypto !== 'undefined' && crypto.subtle) ? 'subtle ok' : 'no webcrypto';
+  $('#boot').textContent = 'core ready · p-256 · ' + subtle;
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>me/1 — test harness</title>
+<style>
+:root{--ink:#0a0a0a;--panel:#101010;--paper:#f2efe6;--dim:#8b8677;--line:#272520;--gold:#c9a227;--ok:#57a773;--bad:#cf5a43}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--ink);color:var(--paper);font:13px/1.6 ui-monospace,Menlo,Consolas,monospace}
+body{max-width:920px;margin:0 auto;padding:24px 22px 80px}
+h1{font-size:20px}.tag{color:var(--dim);margin:4px 0 16px}
+#summary{padding:10px 14px;border:1px solid var(--line);border-radius:2px;margin-bottom:16px}
+#summary.ok{border-color:var(--ok);color:var(--ok)}
+#summary.bad{border-color:var(--bad);color:var(--bad)}
+table{width:100%;border-collapse:collapse}
+td,th{border-bottom:1px solid var(--line);padding:6px 10px;text-align:left;font-size:12px}
+th{color:var(--dim);font-size:10px;letter-spacing:.1em;text-transform:uppercase}
+td.n{width:36px;color:var(--dim)}td.r{width:80px;font-weight:600}
+tr.p td.r{color:var(--ok)}tr.f td.r{color:var(--bad)}tr.f td{background:#1a0f0d}
+</style>
+</head>
+<body>
+<h1>me<b style="color:var(--gold)">/1</b> — test harness</h1>
+<div class="tag">offline · no dependencies · zero network calls · core embedded from me.html at build time</div>
+<div id="summary">running…</div>
+<table><thead><tr><th>#</th><th>assertion</th><th>result</th></tr></thead><tbody id="rows"></tbody></table>
+<script id="me-core">
+/* me/1 core — pure logic. no DOM, no network, no dependencies. */
+globalThis.ME = (function () {
+  'use strict';
+  var te = new TextEncoder();
+
+  function b64u(bytes) {
+    var s = '';
+    for (var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+    return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+
+  function ub64u(str) {
+    var s = String(str).replace(/-/g, '+').replace(/_/g, '/');
+    while (s.length % 4) s += '=';
+    var bin = atob(s), out = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+
+  function canon(v) {
+    if (v === null || typeof v !== 'object') return JSON.stringify(v);
+    if (Array.isArray(v)) {
+      var parts = [];
+      for (var i = 0; i < v.length; i++) parts.push(canon(v[i]));
+      return '[' + parts.join(',') + ']';
+    }
+    var keys = Object.keys(v).filter(function (k) { return v[k] !== undefined; }).sort();
+    var out = [];
+    for (var j = 0; j < keys.length; j++) out.push(JSON.stringify(keys[j]) + ':' + canon(v[keys[j]]));
+    return '{' + out.join(',') + '}';
+  }
+
+  async function sha256hex(str) {
+    var d = await crypto.subtle.digest('SHA-256', te.encode(str));
+    var b = new Uint8Array(d), s = '';
+    for (var i = 0; i < b.length; i++) s += b[i].toString(16).padStart(2, '0');
+    return s;
+  }
+
+  function cleanPub(j) { return { crv: 'P-256', kty: 'EC', x: j.x, y: j.y }; }
+  function cleanPriv(j) { return { crv: 'P-256', d: j.d, kty: 'EC', x: j.x, y: j.y }; }
+
+  async function newIdentity() {
+    var kp = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+    var pub = cleanPub(await crypto.subtle.exportKey('jwk', kp.publicKey));
+    var priv = cleanPriv(await crypto.subtle.exportKey('jwk', kp.privateKey));
+    var id = 'me:' + (await sha256hex(canon(pub))).slice(0, 32);
+    return { id: id, pub: pub, priv: priv };
+  }
+
+  async function signBytes(privJwk, bytes) {
+    var k = await crypto.subtle.importKey(
+      'jwk',
+      { kty: 'EC', crv: 'P-256', x: privJwk.x, y: privJwk.y, d: privJwk.d },
+      { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign']
+    );
+    var sig = await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, k, bytes);
+    return b64u(new Uint8Array(sig));
+  }
+
+  async function verifyBytes(pubJwk, bytes, sigB64) {
+    try {
+      var k = await crypto.subtle.importKey(
+        'jwk', { kty: 'EC', crv: 'P-256', x: pubJwk.x, y: pubJwk.y },
+        { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']
+      );
+      return await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, k, ub64u(sigB64), bytes);
+    } catch (e) { return false; }
+  }
+
+  function without(obj, keys) {
+    var copy = JSON.parse(JSON.stringify(obj));
+    for (var i = 0; i < keys.length; i++) delete copy[keys[i]];
+    return copy;
+  }
+
+  async function signProfile(profile, privJwk) {
+    var body = without(profile, ['signature']);
+    var sig = await signBytes(privJwk, te.encode(canon(body)));
+    var out = JSON.parse(JSON.stringify(body));
+    out.signature = sig;
+    return out;
+  }
+
+  async function verifyProfile(p) {
+    try {
+      if (!p || p.format !== 'me/1' || !p.public_key || !p.signature) return false;
+      return await verifyBytes(p.public_key, te.encode(canon(without(p, ['signature']))), p.signature);
+    } catch (e) { return false; }
+  }
+
+  /* ---- merge ---- */
+
+  var KIND_ORDER = ['review', 'intro', 'pair', 'advice'];
+
+  function intervals(p) {
+    var out = [];
+    var list = (p && p.availability) || [];
+    for (var i = 0; i < list.length; i++) {
+      var parts = String(list[i]).split('/');
+      var s = Date.parse(parts[0]), e = Date.parse(parts[1]);
+      if (!isNaN(s) && !isNaN(e) && e > s) out.push([s, e]);
+    }
+    return out;
+  }
+
+  function overlap(a, b) {
+    var best = null, ia = intervals(a), ib = intervals(b);
+    for (var i = 0; i < ia.length; i++) {
+      for (var j = 0; j < ib.length; j++) {
+        var s = Math.max(ia[i][0], ib[j][0]);
+        var e = Math.min(ia[i][1], ib[j][1]);
+        if (e > s) {
+          if (!best || s < best.start || (s === best.start && e > best.end)) best = { start: s, end: e };
+        }
+      }
+    }
+    return best;
+  }
+
+  function commonKinds(a, b) {
+    var ka = (a.policy && a.policy.kinds) || [];
+    var kb = (b.policy && b.policy.kinds) || [];
+    return KIND_ORDER.filter(function (k) { return ka.indexOf(k) !== -1 && kb.indexOf(k) !== -1; });
+  }
+
+  function policyOk(a, b) {
+    if (!commonKinds(a, b).length) return false;
+    var ca = a.policy && typeof a.policy.max_per_day === 'number' ? a.policy.max_per_day : 99;
+    var cb = b.policy && typeof b.policy.max_per_day === 'number' ? b.policy.max_per_day : 99;
+    return ca > 0 && cb > 0;
+  }
+
+  function evidenceOk(p) {
+    if (!(p.policy && p.policy.require_evidence)) return true;
+    var cs = p.claims || [];
+    for (var i = 0; i < cs.length; i++) {
+      if (!/^sha256:[0-9a-f]{64}$/.test(String(cs[i].evidence || ''))) return false;
+    }
+    return true;
+  }
+
+  function fresh(p, now) {
+    var i = Date.parse(p.issued_at || ''), x = Date.parse(p.expires_at || '');
+    return !isNaN(i) && !isNaN(x) && i <= now + 5 * 60 * 1000 && x >= now;
+  }
+
+  function propose(a, b) {
+    var kinds = commonKinds(a, b);
+    var slot = overlap(a, b);
+    if (!kinds.length || !slot) return null;
+    var minA = (a.policy && a.policy.min_overlap_minutes) || 15;
+    var minB = (b.policy && b.policy.min_overlap_minutes) || 15;
+    var len = Math.floor((slot.end - slot.start) / 60000 / 15) * 15;
+    if (len < Math.max(minA, minB)) return null;
+    var kind = kinds[0];
+    var minutes = Math.min(len, 45);
+    return {
+      slot: { start: new Date(slot.start).toISOString(), end: new Date(slot.start + minutes * 60000).toISOString() },
+      terms: { kind: kind, minutes: minutes, text: a.handle + ' offers ' + kind + ' to ' + b.handle, a: a.id, b: b.id }
+    };
+  }
+
+  async function runMerge(a, b, now) {
+    now = now || Date.now();
+    var gates = [];
+    function gate(id, ok, detail, code) {
+      gates.push({ id: id, ok: !!ok, detail: detail, code: ok ? null : code });
+      return !!ok;
+    }
+    function shape(p) { return !!(p && p.format === 'me/1' && p.public_key && p.id && p.handle); }
+    if (!gate('format', shape(a) && shape(b), 'both files declare me/1', 'E_FORMAT')) {
+      return { ok: false, gates: gates, proposal: null, reason: 'E_FORMAT' };
+    }
+    var sigOk = gate('signature', (await verifyProfile(a)) && (await verifyProfile(b)),
+      'self-signature verifies against the embedded p-256 key', 'E_SIG');
+    var freshOk = gate('fresh', fresh(a, now) && fresh(b, now),
+      'now sits inside both signed validity windows', 'E_EXPIRED');
+    var evOk = gate('evidence', evidenceOk(a) && evidenceOk(b),
+      'claims carry sha256 evidence where policy demands', 'E_EVIDENCE');
+    var polOk = gate('policy', policyOk(a, b),
+      'kind intersection non-empty, both capacities open', 'E_POLICY');
+    var prop = (sigOk && freshOk && evOk && polOk) ? propose(a, b) : null;
+    gate('overlap', !!prop, 'shared window meets both minimums (deterministic pick)', 'E_NO_OVERLAP');
+    var ok = gates.every(function (g) { return g.ok; });
+    return { ok: ok, gates: gates, proposal: prop, reason: ok ? null : (gates.find(function (g) { return !g.ok; }) || {}).code };
+  }
+
+  /* ---- agreement ---- */
+
+  async function makeAgreement(a, b, prop) {
+    var body = {
+      format: 'agreement/1',
+      parties: [
+        { id: a.id, handle: a.handle, public_key: a.public_key },
+        { id: b.id, handle: b.handle, public_key: b.public_key }
+      ],
+      terms: prop.terms,
+      slot: prop.slot,
+      inputs: {
+        a: 'sha256:' + await sha256hex(canon(without(a, ['signature']))),
+        b: 'sha256:' + await sha256hex(canon(without(b, ['signature'])))
+      },
+      issued_at: new Date().toISOString()
+    };
+    body.digest = 'sha256:' + await sha256hex(canon(body));
+    body.signatures = [];
+    return body;
+  }
+
+  async function signAgreement(agr, privJwk, id) {
+    var body = without(agr, ['digest', 'signatures']);
+    var digest = 'sha256:' + await sha256hex(canon(body));
+    if (digest !== agr.digest) return null;
+    var sig = await signBytes(privJwk, te.encode(digest));
+    var sigs = (agr.signatures || []).filter(function (s) { return s.id !== id; });
+    sigs.push({ id: id, sig: sig, at: new Date().toISOString() });
+    var out = JSON.parse(JSON.stringify(agr));
+    out.signatures = sigs;
+    return out;
+  }
+
+  async function verifyAgreement(agr) {
+    if (!agr || agr.format !== 'agreement/1' || !Array.isArray(agr.parties)) {
+      return { ok: false, digestOk: false, reason: 'E_FORMAT', signedBy: [], missing: [] };
+    }
+    var digest = 'sha256:' + await sha256hex(canon(without(agr, ['digest', 'signatures'])));
+    var digestOk = digest === agr.digest;
+    if (!digestOk) return { ok: false, digestOk: false, reason: 'E_DIGEST', signedBy: [], missing: [] };
+    var signedBy = [], missing = [];
+    for (var i = 0; i < agr.parties.length; i++) {
+      var p = agr.parties[i];
+      var s = (agr.signatures || []).filter(function (x) { return x.id === p.id; })[0];
+      if (!s) { missing.push(p.id); continue; }
+      var good = await verifyBytes(p.public_key, te.encode(digest), s.sig);
+      if (!good) return { ok: false, digestOk: true, reason: 'E_SIG', signedBy: signedBy, missing: missing };
+      signedBy.push(p.id);
+    }
+    return {
+      ok: missing.length === 0,
+      digestOk: true,
+      reason: missing.length ? 'E_UNSIGNED' : null,
+      signedBy: signedBy,
+      missing: missing
+    };
+  }
+
+  function ics(agr) {
+    function stamp(t) { return new Date(t).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, ''); }
+    return [
+      'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//me.html//me/1//EN', 'BEGIN:VEVENT',
+      'UID:' + agr.digest.slice(7, 39) + '@me.html',
+      'DTSTAMP:' + stamp(Date.now()),
+      'DTSTART:' + stamp(agr.slot.start),
+      'DTEND:' + stamp(agr.slot.end),
+      'SUMMARY:' + agr.terms.kind + ' — ' + agr.parties[0].handle + ' × ' + agr.parties[1].handle,
+      'DESCRIPTION:' + agr.digest,
+      'END:VEVENT', 'END:VCALENDAR'
+    ].join('\r\n');
+  }
+
+  return {
+    canon: canon, b64u: b64u, ub64u: ub64u, sha256hex: sha256hex,
+    newIdentity: newIdentity, signBytes: signBytes, verifyBytes: verifyBytes,
+    signProfile: signProfile, verifyProfile: verifyProfile,
+    propose: propose, runMerge: runMerge,
+    makeAgreement: makeAgreement, signAgreement: signAgreement, verifyAgreement: verifyAgreement,
+    ics: ics, KIND_ORDER: KIND_ORDER
+  };
+})();
+</script>
+<script>
+(async function () {
+  'use strict';
+  var ME = globalThis.ME;
+  var rows = document.getElementById('rows');
+  var results = [];
+  function t(name, cond) {
+    results.push({ name: name, pass: !!cond });
+    var tr = document.createElement('tr');
+    tr.className = cond ? 'p' : 'f';
+    tr.innerHTML = '<td class="n">' + results.length + '</td><td>' + name + '</td><td class="r">' + (cond ? 'PASS' : 'FAIL') + '</td>';
+    rows.appendChild(tr);
+  }
+  function hex(n) { var s = ''; for (var i = 0; i < n; i++) s += '0123456789abcdef'[Math.floor(Math.random() * 16)]; return s; }
+  async function mk(handle, o) {
+    o = o || {};
+    var id = await ME.newIdentity();
+    var now = Date.now();
+    var base = {
+      format: o.format || 'me/1', id: id.id, public_key: id.pub, handle: handle,
+      name: handle, headline: 'h', building: 'b', good_at: ['x'], looking_for: ['y'],
+      claims: o.claims !== undefined ? o.claims : [{ id: 'c1', text: 't', evidence: 'sha256:' + await ME.sha256hex('ev-' + handle) }],
+      availability: o.availability || [new Date(now + 36e5).toISOString() + '/' + new Date(now + 36e5 + 72e5).toISOString()],
+      policy: { kinds: o.kinds || ['review', 'intro'], min_overlap_minutes: o.min || 15,
+        max_per_day: o.max === undefined ? 2 : o.max, require_evidence: o.reqEv === undefined ? true : o.reqEv },
+      issued_at: o.issued || new Date(now).toISOString(),
+      expires_at: o.expires || new Date(now + 30 * 864e5).toISOString()
+    };
+    return { profile: await ME.signProfile(base, id.priv), priv: id.priv, id: id.id };
+  }
+
+  /* canon + hash */
+  t('canon sorts object keys', ME.canon({ b: 1, a: 2 }) === '{"a":2,"b":1}');
+  t('canon drops undefined', ME.canon({ a: 1, b: undefined }) === '{"a":1}');
+  t('canon keeps array order', ME.canon([3, 1, 2]) === '[3,1,2]');
+  t('canon is key-order independent (nested)', ME.canon({ a: 1, b: { d: 4, c: 3 } }) === ME.canon({ b: { c: 3, d: 4 }, a: 1 }));
+  var rnd = new Uint8Array(32); for (var i = 0; i < 32; i++) rnd[i] = (Math.random() * 256) | 0;
+  t('b64u/ub64u round-trip', ME.ub64u(ME.b64u(rnd)).join(',') === Array.prototype.join.call(rnd, ','));
+  t('sha256("abc") known vector', (await ME.sha256hex('abc')) === 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
+  t('sha256hex is 64 lowercase hex', /^[0-9a-f]{64}$/.test(await ME.sha256hex('me')));
+
+  /* identity + signatures */
+  var i1 = await ME.newIdentity(), i2 = await ME.newIdentity();
+  t('identity id format me:+32hex', /^me:[0-9a-f]{32}$/.test(i1.id));
+  t('identities are unique', i1.id !== i2.id);
+  var A = await mk('alex'), B = await mk('sam');
+  t('signed profile verifies', await ME.verifyProfile(A.profile));
+  var tampered = JSON.parse(JSON.stringify(A.profile)); tampered.handle = 'mallory';
+  t('tampered handle fails verify', !(await ME.verifyProfile(tampered)));
+  var badf = JSON.parse(JSON.stringify(A.profile)); badf.format = 'me/9';
+  t('wrong format fails verify', !(await ME.verifyProfile(badf)));
+  var msg = new TextEncoder().encode('hello');
+  t('signBytes/verifyBytes round-trip', await ME.verifyBytes(A.profile.public_key, msg, await ME.signBytes(A.priv, msg)));
+  t('verifyBytes with wrong key fails', !(await ME.verifyBytes(B.profile.public_key, msg, await ME.signBytes(A.priv, msg))));
+
+  /* merge gates */
+  var r1 = await ME.runMerge(A.profile, B.profile);
+  t('compatible pair: 6/6 gates + proposal', r1.ok && r1.gates.every(function (g) { return g.ok; }) && r1.proposal);
+  var rSig = await ME.runMerge(tampered, B.profile);
+  t('tampered file → E_SIG', !rSig.ok && rSig.reason === 'E_SIG');
+  var E = await mk('eve', { expires: new Date(Date.now() - 1000).toISOString() });
+  t('expired file → E_EXPIRED', (await ME.runMerge(E.profile, B.profile)).reason === 'E_EXPIRED');
+  var P = await mk('pat', { kinds: ['advice'] });
+  t('disjoint kinds → E_POLICY', (await ME.runMerge(P.profile, B.profile)).reason === 'E_POLICY');
+  var O = await mk('oli', { availability: [new Date(Date.now() + 864e5).toISOString() + '/' + new Date(Date.now() + 864e5 + 36e5).toISOString()] });
+  t('disjoint windows → E_NO_OVERLAP', (await ME.runMerge(O.profile, B.profile)).reason === 'E_NO_OVERLAP');
+  t('bad format → E_FORMAT', (await ME.runMerge({ hello: 1 }, B.profile)).reason === 'E_FORMAT');
+  var V = await mk('val', { claims: [{ id: 'c1', text: 't', evidence: 'nope' }] });
+  t('missing evidence → E_EVIDENCE', (await ME.runMerge(V.profile, B.profile)).reason === 'E_EVIDENCE');
+
+  /* agreement */
+  var agr = await ME.makeAgreement(A.profile, B.profile, r1.proposal);
+  var s1 = await ME.signAgreement(agr, A.priv, A.id);
+  var v1 = await ME.verifyAgreement(s1);
+  t('one signature → E_UNSIGNED', !v1.ok && v1.reason === 'E_UNSIGNED');
+  var s2 = await ME.signAgreement(s1, B.priv, B.id);
+  var v2 = await ME.verifyAgreement(s2);
+  t('co-signed agreement verifies (2/2)', v2.ok && v2.signedBy.length === 2);
+  var tamperAgr = JSON.parse(JSON.stringify(s2)); tamperAgr.terms.minutes = 99;
+  t('tampered agreement → E_DIGEST', (await ME.verifyAgreement(tamperAgr)).reason === 'E_DIGEST');
+  t('proposal is deterministic', ME.canon(ME.propose(A.profile, B.profile)) === ME.canon(ME.propose(A.profile, B.profile)));
+  var cal = ME.ics(s2);
+  t('ics export well-formed', cal.indexOf('BEGIN:VCALENDAR') === 0 && cal.indexOf('DTSTART:') > 0 && cal.indexOf('SUMMARY:') > 0);
+
+  var passed = results.filter(function (r) { return r.pass; }).length;
+  var sum = document.getElementById('summary');
+  sum.textContent = passed + '/' + results.length + ' assertions passed' + (passed === results.length ? ' — ALL GREEN' : ' — FAILURES ABOVE');
+  sum.className = passed === results.length ? 'ok' : 'bad';
+  document.title = (passed === results.length ? 'PASS' : 'FAIL') + ' ' + passed + '/' + results.length + ' — me/1';
+  globalThis.__TEST__ = { passed: passed, total: results.length, ok: passed === results.length };
+})();
+</script>
+</body>
+</html>

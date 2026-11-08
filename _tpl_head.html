@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>me/1 — test harness</title>
+<style>
+:root{--ink:#0a0a0a;--panel:#101010;--paper:#f2efe6;--dim:#8b8677;--line:#272520;--gold:#c9a227;--ok:#57a773;--bad:#cf5a43}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--ink);color:var(--paper);font:13px/1.6 ui-monospace,Menlo,Consolas,monospace}
+body{max-width:920px;margin:0 auto;padding:24px 22px 80px}
+h1{font-size:20px}.tag{color:var(--dim);margin:4px 0 16px}
+#summary{padding:10px 14px;border:1px solid var(--line);border-radius:2px;margin-bottom:16px}
+#summary.ok{border-color:var(--ok);color:var(--ok)}
+#summary.bad{border-color:var(--bad);color:var(--bad)}
+table{width:100%;border-collapse:collapse}
+td,th{border-bottom:1px solid var(--line);padding:6px 10px;text-align:left;font-size:12px}
+th{color:var(--dim);font-size:10px;letter-spacing:.1em;text-transform:uppercase}
+td.n{width:36px;color:var(--dim)}td.r{width:80px;font-weight:600}
+tr.p td.r{color:var(--ok)}tr.f td.r{color:var(--bad)}tr.f td{background:#1a0f0d}
+</style>
+</head>
+<body>
+<h1>me<b style="color:var(--gold)">/1</b> — test harness</h1>
+<div class="tag">offline · no dependencies · zero network calls · core embedded from me.html at build time</div>
+<div id="summary">running…</div>
+<table><thead><tr><th>#</th><th>assertion</th><th>result</th></tr></thead><tbody id="rows"></tbody></table>
+<!--CORE-->
